@@ -1,6 +1,6 @@
 //! http server implementation on top of `MAY`
 
-use std::io::{self, Read, Write};
+use std::io;
 use std::net::ToSocketAddrs;
 
 use crate::request::{self, Request};
@@ -96,9 +96,7 @@ fn each_connection_loop<T: HttpService>(mut stream: TcpStream, mut service: T) {
     let mut req_buf = BytesMut::with_capacity(4096 * 8);
     let mut rsp_buf = BytesMut::with_capacity(4096 * 32);
     let mut body_buf = BytesMut::with_capacity(4096 * 8);
-    stream.set_nonblocking(true).unwrap();
     loop {
-        stream.reset_io();
         loop {
             // read the socket for reqs
             if req_buf.capacity() - req_buf.len() < 512 {
@@ -106,7 +104,7 @@ fn each_connection_loop<T: HttpService>(mut stream: TcpStream, mut service: T) {
             }
 
             let read_buf = unsafe { &mut *(req_buf.bytes_mut() as *mut _ as *mut [u8]) };
-            match stream.read(read_buf) {
+            match stream.raw_read(read_buf) {
                 Ok(n) => {
                     if n == 0 {
                         //connection was closed
@@ -147,7 +145,7 @@ fn each_connection_loop<T: HttpService>(mut stream: TcpStream, mut service: T) {
             let len = rsp_buf.len();
             let mut written = 0;
             while written < len {
-                match stream.write(&rsp_buf[written..]) {
+                match stream.raw_write(&rsp_buf[written..]) {
                     Ok(n) => {
                         if n == 0 {
                             return;
